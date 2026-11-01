@@ -18,6 +18,18 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "types": ["vitest/globals", "node"]
-  }
+    "types": [
+      "vitest/globals",
+      "node"
+    ]
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/auth-service/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/schedule-service/tsconfig.app.json"
+    }
+  ]
 }
