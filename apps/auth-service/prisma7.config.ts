@@ -7,6 +7,6 @@ export default defineConfig({
     path: 'prisma/migrations',
   },
   datasource: {
-    url: env('AUTH_DATABASE_URL'),
+    url: process.env.AUTH_DATABASE_URL_LOCAL || env('AUTH_DATABASE_URL'),
   },
 });

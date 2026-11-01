@@ -8,7 +8,7 @@ async function bootstrap() {
     transport: Transport.TCP,
     options: {
       host: process.env.SCHEDULE_SERVICE_BIND_HOST ?? '0.0.0.0',
-      port: Number(process.env.SCHEDULE_SERVICE_PORT ?? 4001),
+      port: Number(process.env.SCHEDULE_SERVICE_PORT ?? 3002),
     },
   });
   app.enableShutdownHooks();

@@ -9,15 +9,20 @@ describe('AuthServiceController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AuthServiceController],
-      providers: [AuthService],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: { getHello: () => 'Auth service is healthy' },
+        },
+      ],
     }).compile();
 
     appController = app.get<AuthServiceController>(AuthServiceController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return the auth service health message', () => {
+      expect(appController.getHello()).toBe('Auth service is healthy');
     });
   });
 });

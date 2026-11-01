@@ -8,7 +8,7 @@ async function bootstrap() {
     transport: Transport.TCP,
     options: {
       host: process.env.AUTH_SERVICE_BIND_HOST ?? '0.0.0.0',
-      port: Number(process.env.AUTH_SERVICE_PORT ?? 4002),
+      port: Number(process.env.AUTH_SERVICE_PORT ?? 3001),
     },
   });
   app.enableShutdownHooks();
