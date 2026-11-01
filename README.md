@@ -1,126 +1,229 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Healthcare Schedule System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend microservices for healthcare appointment scheduling. The API gateway exposes GraphQL, while the Auth and Schedule services communicate over NestJS TCP. Each service owns a PostgreSQL database. Redis supports Auth rate limiting, Schedule query caching, Bull email jobs, and scheduled in-app reminders.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ yarn install
+```mermaid
+flowchart LR
+  FE[Web / mobile client] -->|GraphQL + Bearer JWT| GW[API Gateway :3000]
+  GW -->|TCP + token| AUTH[Auth Service :3001]
+  GW -->|TCP + token| SCHED[Schedule Service :3002]
+  SCHED -->|validateToken for each request| AUTH
+  AUTH --> AUTHDB[(Auth PostgreSQL)]
+  SCHED --> SCHEDDB[(Schedule PostgreSQL)]
+  AUTH --> REDIS[(Redis)]
+  SCHED --> REDIS
+  SCHED -->|Bull email queue| REDIS
+  REDIS --> NOTIFY[Notification worker]
+  NOTIFY --> SMTP[SMTP / Mailpit]
 ```
 
-## Compile and run the project
+The gateway extracts the `Authorization: Bearer <token>` header and passes the token with each Schedule RPC command. Schedule Service asks Auth Service to validate it before executing the operation. Invalid or missing tokens are rejected as Unauthorized. Redis stores short-lived query results, throttling counters, Bull email jobs, and reminder due times. In-app reminders are also persisted in Schedule PostgreSQL so they can be recovered if Redis is unavailable.
 
-```bash
-# development
-$ yarn run start
+## Run with Docker Compose
 
-# watch mode
-$ yarn run start:dev
+Requirements: Docker with Compose and Node.js 20+ with Yarn.
 
-# production mode
-$ yarn run start:prod
+1. Copy `.env.example` to `.env`. Replace the example database/Redis passwords and `JWT_SECRET` for your environment. Keep Redis URL credentials URL-encoded if they contain reserved characters.
+2. Start the containers:
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+3. Install dependencies and apply the Prisma migrations from the host:
+
+   ```bash
+   yarn install
+   yarn db:deploy:auth
+   yarn db:deploy:schedule
+   ```
+
+4. Open GraphQL Playground at <http://localhost:3000/graphql>. In development, Playground and schema introspection are enabled. Use the `Headers` panel for authenticated operations:
+
+   ```json
+   { "Authorization": "Bearer <access-token>" }
+   ```
+
+Email is captured locally by Mailpit at <http://localhost:8025>. To use a real mail provider, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in `.env`, then restart the notification worker. Check container health/logs with `docker compose ps` and `docker compose logs -f auth-service schedule-service notification-service`.
+
+## Environment variables
+
+| Variable                                                                                              | Purpose                                                                                     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                                                            | Runtime mode; Compose services run in production mode.                                      |
+| `GRAPHQL_PLAYGROUND_ENABLED`                                                                          | Enables Playground in the Compose gateway (default: `true` for this local setup). Disable in production deployments. |
+| `API_GATEWAY_PORT`, `API_GATEWAY_HOST_PORT`                                                           | Gateway container and host ports.                                                           |
+| `AUTH_SERVICE_PORT`, `AUTH_SERVICE_HOST`                                                              | Auth TCP port and optional host development address. In Compose, service DNS is used.       |
+| `SCHEDULE_SERVICE_PORT`, `SCHEDULE_SERVICE_HOST`                                                      | Schedule TCP port and optional host development address. In Compose, service DNS is used.   |
+| `AUTH_DB_USER`, `AUTH_DB_PASSWORD`, `AUTH_DB_NAME`, `AUTH_DB_HOST_PORT`                               | Auth PostgreSQL container credentials/database and published port.                          |
+| `AUTH_DATABASE_URL`, `AUTH_DATABASE_URL_LOCAL`                                                        | Auth Prisma URL for Docker and optional host development.                                   |
+| `SCHEDULE_DB_USER`, `SCHEDULE_DB_PASSWORD`, `SCHEDULE_DB_NAME`, `SCHEDULE_DB_HOST_PORT`               | Schedule PostgreSQL container credentials/database and published port.                      |
+| `SCHEDULE_DATABASE_URL`, `SCHEDULE_DATABASE_URL_LOCAL`                                                | Schedule Prisma URL for Docker and optional host development.                               |
+| `JWT_SECRET`                                                                                          | Secret used to sign and verify access tokens. Use a strong private value.                   |
+| `REDIS_PASSWORD`, `REDIS_HOST_PORT`                                                                   | Redis container password and published port.                                                |
+| `REDIS_URL`, `REDIS_URL_LOCAL`                                                                        | Redis URL for containers and optional host development.                                     |
+| `AUTH_LOGIN_RATE_LIMIT`, `AUTH_LOGIN_RATE_WINDOW_SECONDS`                                             | Login attempts per normalized email and rate window (defaults: 5 per 900 seconds).          |
+| `AUTH_REGISTER_RATE_LIMIT`, `AUTH_REGISTER_RATE_WINDOW_SECONDS`                                       | Registration attempts per normalized email and rate window (defaults: 10 per 3600 seconds). |
+| `QUERY_CACHE_TTL_SECONDS`                                                                             | Schedule query cache lifetime (default: 30 seconds).                                        |
+| `SMTP_HOST`, `SMTP_HOST_LOCAL`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Outbound email transport settings. Defaults point at Mailpit for local development.         |
+| `MAILPIT_WEB_PORT`                                                                                    | Mailpit web UI host port (default: 8025).                                                   |
+| `OBSERVE_APP_KEY`, `OBSERVE_APP_SECRET`                                                               | Optional NestJS Observe credentials for service telemetry.                                  |
+
+The `.env.example` values are for local development only. For a host-run Nest process, use the `*_LOCAL` database and Redis URLs where provided; Compose uses the container URLs.
+
+## GraphQL examples
+
+All operations are documented in Playground's Docs panel. Register and log in without a token first:
+
+```graphql
+mutation Register {
+  register(
+    email: "customer@example.com"
+    password: "StrongPass123"
+    name: "Amani"
+  ) {
+    id
+    email
+    name
+  }
+}
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+```graphql
+mutation Login {
+  login(email: "customer@example.com", password: "StrongPass123") {
+    accessToken
+    tokenType
+    expiresIn
+    user {
+      id
+      email
+      name
+    }
+  }
+}
 ```
 
-## Deployment
+Copy `accessToken` into the `Authorization` header described above. Schedule Service validates it with Auth Service on each operation.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+```graphql
+mutation BookAppointment {
+  createSchedule(
+    objective: "Konsultasi"
+    doctorId: "<doctor-uuid>"
+    scheduledAt: "2026-11-05T09:00:00.000Z"
+  ) {
+    id
+    status
+    scheduledAt
+    doctor {
+      id
+      name
+    }
+    customer {
+      id
+      name
+      email
+    }
+  }
+}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The customer and doctor must exist and the selected time must fit the doctor's availability. Booking queues a confirmation email and creates in-app reminders for 24 hours and 1 hour before the appointment.
 
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-This project is already instrumented. To connect it, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
-
-```bash
-$ npx @nestjs/observe link
+```graphql
+query MyNotifications {
+  notifications(page: 1, limit: 20) {
+    items {
+      id
+      title
+      message
+      readAt
+      createdAt
+    }
+    page
+    total
+  }
+}
 ```
 
-It writes the app key and secret into `.env` and makes every `nest start` script (`start`, `start:dev`, `start:debug`) load it. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
+Clinic admins can also manage a workflow sequence. Steps are stored in the Schedule database per admin account; save replaces the complete ordered list.
 
-Or do it by hand: create an application and an API key at [observe.nestjs.com](https://observe.nestjs.com), and set the pair as `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment the app runs in.
+Customer profiles include optional phone, gender, birth date, address, treatment, treatment status, next visit, and note fields. Apply the Schedule database migrations before using these profile fields:
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+```sh
+yarn db:deploy:schedule
+```
 
-## Resources
+Admin users can create, update, and delete customers and doctors. Doctor accounts can be linked with `userId`; admins and the linked doctor can maintain weekly availability. `doctorAvailabilities(doctorId)` returns configured windows (UTC), while `availableSlots(doctorId, date)` returns future unbooked slots for a UTC date.
 
-Check out a few resources that may come in handy when working with NestJS:
+```graphql
+query WorkflowSteps {
+  workflowSteps {
+    id
+    title
+    description
+    position
+  }
+}
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```graphql
+mutation SaveWorkflow {
+  saveWorkflowSteps(
+    steps: [
+      { title: "Registrasi", description: "Verifikasi data pasien" }
+      { title: "Pemeriksaan", description: "Pemeriksaan oleh dokter" }
+    ]
+  ) {
+    id
+    title
+    description
+    position
+  }
+}
+```
 
-## Support
+```graphql
+mutation MarkNotificationRead {
+  markNotificationRead(id: "<notification-uuid>")
+}
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```graphql
+mutation DeleteSchedule {
+  deleteSchedule(id: "<schedule-uuid>")
+}
+```
 
-## Stay in touch
+Schedule deletion is restricted to administrators and queues a customer email. Other useful operations include `customers`, `customer`, `doctors`, `doctor`, `schedules`, `schedule`, `availableSlots`, `setDoctorAvailability`, `updateScheduleStatus`, and `reschedule`; use the Playground Docs panel for argument and role descriptions.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Roles and appointment behavior
 
-## License
+- Registration creates a `CUSTOMER` account. To bootstrap the first administrator, register the account and promote it directly in the Auth database:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+  ```sql
+  UPDATE "User" SET "role" = 'ADMIN' WHERE "email" = 'admin@example.com';
+  ```
+
+- Admins can assign roles with `setUserRole`. Configure a doctor's account as `DOCTOR` before linking it to a doctor profile.
+- Doctors (or admins) configure weekly availability with `setDoctorAvailability`. `dayOfWeek` is `0` Sunday through `6` Saturday; hours and appointment timestamps use UTC. Slots must be 5–240 minutes and evenly divide the time range.
+- `availableSlots(doctorId, date)` lists future openings. A database constraint prevents overlapping appointments, including concurrent bookings.
+- Customers can book and view their own appointments, cancel with at least 24 hours' notice, and reschedule appointments in `REQUESTED` status. Doctors can view their own appointments and confirm, cancel, or complete them. Admins can manage directory data and delete schedules.
+- Appointment state flow: `REQUESTED` → `CONFIRMED` → `COMPLETED`; active appointments can be cancelled.
+- The GraphQL `notifications` and `markNotificationRead` operations provide the backend API for the existing frontend notification UI. The frontend should query/poll notifications and mark them read; this repository contains backend services only.
+
+## Build, migrations, and coverage
+
+```bash
+yarn build
+yarn build:auth
+yarn build:schedule
+yarn build:notification
+yarn test
+yarn test:cov
+```
+
+Coverage thresholds are configured at 50% for the tracked application and shared core modules. Apply development migrations with `yarn db:migrate:auth` and `yarn db:migrate:schedule`; use `yarn db:deploy:auth` and `yarn db:deploy:schedule` in deployment environments.

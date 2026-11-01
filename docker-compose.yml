@@ -8,16 +8,21 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      GRAPHQL_PLAYGROUND_ENABLED: ${GRAPHQL_PLAYGROUND_ENABLED:-true}
       API_GATEWAY_PORT: ${API_GATEWAY_PORT:-3000}
-      AUTH_SERVICE_HOST: ${AUTH_SERVICE_HOST:-auth-service}
+      AUTH_SERVICE_HOST: auth-service
       AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
-      SCHEDULE_SERVICE_HOST: ${SCHEDULE_SERVICE_HOST:-schedule-service}
+      SCHEDULE_SERVICE_HOST: schedule-service
       SCHEDULE_SERVICE_PORT: ${SCHEDULE_SERVICE_PORT:-4001}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-5}
+      AUTH_LOGIN_RATE_WINDOW_SECONDS: ${AUTH_LOGIN_RATE_WINDOW_SECONDS:-900}
+      AUTH_REGISTER_RATE_LIMIT: ${AUTH_REGISTER_RATE_LIMIT:-10}
+      AUTH_REGISTER_RATE_WINDOW_SECONDS: ${AUTH_REGISTER_RATE_WINDOW_SECONDS:-3600}
       OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
       OBSERVE_APP_SECRET: ${OBSERVE_APP_SECRET:-YOUR_APP_SECRET}
     ports:
-      - "${API_GATEWAY_HOST_PORT:-3000}:${API_GATEWAY_PORT:-3000}"
+      - '${API_GATEWAY_HOST_PORT:-3000}:${API_GATEWAY_PORT:-3000}'
     depends_on:
       auth-service:
         condition: service_started
@@ -42,6 +47,10 @@ services:
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?Set AUTH_DATABASE_URL in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-5}
+      AUTH_LOGIN_RATE_WINDOW_SECONDS: ${AUTH_LOGIN_RATE_WINDOW_SECONDS:-900}
+      AUTH_REGISTER_RATE_LIMIT: ${AUTH_REGISTER_RATE_LIMIT:-10}
+      AUTH_REGISTER_RATE_WINDOW_SECONDS: ${AUTH_REGISTER_RATE_WINDOW_SECONDS:-3600}
       OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
       OBSERVE_APP_SECRET: ${OBSERVE_APP_SECRET:-YOUR_APP_SECRET}
     depends_on:
@@ -67,6 +76,7 @@ services:
       AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
       SCHEDULE_DATABASE_URL: ${SCHEDULE_DATABASE_URL:?Set SCHEDULE_DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      QUERY_CACHE_TTL_SECONDS: ${QUERY_CACHE_TTL_SECONDS:-30}
       OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
       OBSERVE_APP_SECRET: ${OBSERVE_APP_SECRET:-YOUR_APP_SECRET}
     depends_on:
@@ -76,6 +86,34 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      notification-service:
+        condition: service_started
+    networks:
+      - healthcare-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: notification-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Healthcare Schedule <no-reply@healthcare.local>}
+      OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
+      OBSERVE_APP_SECRET: ${OBSERVE_APP_SECRET:-YOUR_APP_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     networks:
       - healthcare-network
 
@@ -87,11 +125,11 @@ services:
       POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in .env}
       POSTGRES_DB: ${AUTH_DB_NAME:?Set AUTH_DB_NAME in .env}
     ports:
-      - "${AUTH_DB_HOST_PORT:-5433}:5432"
+      - '${AUTH_DB_HOST_PORT:-5433}:5432'
     volumes:
       - auth_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -107,11 +145,11 @@ services:
       POSTGRES_PASSWORD: ${SCHEDULE_DB_PASSWORD:?Set SCHEDULE_DB_PASSWORD in .env}
       POSTGRES_DB: ${SCHEDULE_DB_NAME:?Set SCHEDULE_DB_NAME in .env}
     ports:
-      - "${SCHEDULE_DB_HOST_PORT:-5434}:5432"
+      - '${SCHEDULE_DB_HOST_PORT:-5434}:5432'
     volumes:
       - schedule_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -121,18 +159,35 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
+    command:
+      [
+        'redis-server',
+        '--requirepass',
+        '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}',
+      ]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
+      - '${REDIS_HOST_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
+      test:
+        [
+          'CMD-SHELL',
+          'REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - healthcare-network
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '${MAILPIT_WEB_PORT:-8025}:8025'
     networks:
       - healthcare-network
 

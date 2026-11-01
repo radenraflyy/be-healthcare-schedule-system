@@ -12,3 +12,11 @@ export interface LoginInput {
 export interface TokenInput {
   token: string;
 }
+
+export type UserRole = 'ADMIN' | 'DOCTOR' | 'CUSTOMER';
+
+export interface SetUserRoleInput {
+  token: string;
+  userId: string;
+  role: UserRole;
+}

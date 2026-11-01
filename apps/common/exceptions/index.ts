@@ -5,4 +5,5 @@ export { NotFoundException } from './not-found.exception.js';
 export { RpcServiceException } from './rpc-service.exception.js';
 export { ServiceErrorException } from './service-error.exception.js';
 export { ServiceUnavailableException } from './service-unavailable.exception.js';
+export { TooManyRequestsException } from './too-many-requests.exception.js';
 export { UnauthorizedException } from './unauthorized.exception.js';

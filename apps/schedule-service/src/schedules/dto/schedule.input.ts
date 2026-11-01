@@ -7,6 +7,25 @@ export interface CreateScheduleInput {
   scheduledAt?: string | Date;
 }
 
+export interface SetScheduleStatusInput {
+  id?: string;
+  status?: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  cancelReason?: string;
+}
+
+export interface RescheduleInput {
+  id?: string;
+  scheduledAt?: string | Date;
+}
+
+export interface SetAvailabilityInput {
+  doctorId?: string;
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  slotMinutes?: number;
+}
+
 export interface ScheduleFilterInput extends PageInput {
   customerId?: string;
   doctorId?: string;

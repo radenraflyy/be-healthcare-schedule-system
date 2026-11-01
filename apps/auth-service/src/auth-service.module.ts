@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { AuthService } from './auth/auth.service.js';
+import { createObserveModule } from '@nestjs/observe';
+
 import { AuthServiceController } from './auth/auth.controller.js';
+import { AuthService } from './auth/auth.service.js';
+import { AuthRateLimitService } from './auth/rate-limit.service.js';
 import { JwtTokenService } from './jwt/jwt-token.service.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -22,6 +24,6 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
   ],
   controllers: [AuthServiceController],
-  providers: [AuthService, JwtTokenService],
+  providers: [AuthService, JwtTokenService, AuthRateLimitService],
 })
 export class AuthServiceModule {}

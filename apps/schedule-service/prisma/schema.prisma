@@ -8,47 +8,129 @@ datasource db {
 }
 
 model Schedule {
-  id          String         @id @default(uuid()) @db.Uuid
-  objective   String         @map("Objective")
-  customerId  String         @db.Uuid @map("customerID")
-  doctorId    String         @db.Uuid @map("doctorID")
-  scheduledAt DateTime       @map("scheduleAt")
-  status      ScheduleStatus @default(REQUESTED)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id              String         @id @default(uuid()) @db.Uuid
+  objective       String         @map("Objective")
+  customerId      String         @map("customerID") @db.Uuid
+  doctorId        String         @map("doctorID") @db.Uuid
+  scheduledAt     DateTime       @map("scheduleAt") @db.Timestamptz(3)
+  durationMinutes Int            @default(30)
+  status          ScheduleStatus @default(REQUESTED)
+  cancelReason    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  doctor   Doctor   @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  customer  Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  doctor    Doctor             @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  reminders ScheduleReminder[]
 
   @@index([scheduledAt])
-  @@unique([doctorId, scheduledAt])
   @@map("Schedule")
 }
 
 model Customer {
-  id        String     @id @default(uuid()) @db.Uuid
+  id        String         @id @default(uuid()) @db.Uuid
   name      String
-  email     String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  email     String         @unique
+  userId    String?        @unique @db.Uuid
+  phone     String?
+  gender    String?
+  birthDate DateTime?      @db.Date
+  address   String?
+  treatment String?
+  status    CustomerStatus?
+  nextVisit DateTime?      @db.Timestamptz(3)
+  note      String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   schedules Schedule[]
 
   @@map("Customer")
 }
 
 model Doctor {
-  id        String     @id @default(uuid()) @db.Uuid
-  name      String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  schedules Schedule[]
+  id           String               @id @default(uuid()) @db.Uuid
+  name         String
+  userId       String?              @unique @db.Uuid
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  schedules    Schedule[]
+  availability DoctorAvailability[]
 
   @@map("Doctor")
+}
+
+model DoctorAvailability {
+  id          String   @id @default(uuid()) @db.Uuid
+  doctorId    String   @db.Uuid
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  slotMinutes Int      @default(30)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, dayOfWeek])
+  @@map("DoctorAvailability")
+}
+
+model ScheduleReminder {
+  id         String         @id @default(uuid()) @db.Uuid
+  scheduleId String         @db.Uuid
+  userId     String         @db.Uuid
+  kind       String
+  remindAt   DateTime       @db.Timestamptz(3)
+  status     ReminderStatus @default(PENDING)
+  sentAt     DateTime?      @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, kind])
+  @@index([status, remindAt])
+  @@map("ScheduleReminder")
+}
+
+model Notification {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  scheduleId       String?   @db.Uuid
+  sourceReminderId String?   @unique @db.Uuid
+  title            String
+  message          String
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  readAt           DateTime? @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("Notification")
+}
+
+model ClinicWorkflow {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  steps     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ClinicWorkflow")
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  CANCELLED
 }
 
 enum ScheduleStatus {
   REQUESTED
   CONFIRMED
   CANCELLED
+  COMPLETED
+}
+
+enum CustomerStatus {
+  ACTIVE
+  WAITING
   COMPLETED
 }

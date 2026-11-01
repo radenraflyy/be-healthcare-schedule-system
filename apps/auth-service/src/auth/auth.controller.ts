@@ -1,12 +1,9 @@
 import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+
 import { ServiceErrorException } from '../../../common/exceptions/index.js';
 import { AuthService } from './auth.service.js';
-import type {
-  LoginInput,
-  RegisterInput,
-  TokenInput,
-} from './dto/auth.inputs.js';
+import type { LoginInput, RegisterInput, SetUserRoleInput, TokenInput } from './dto/auth.inputs.js';
 
 @Controller()
 export class AuthServiceController {
@@ -51,6 +48,15 @@ export class AuthServiceController {
     );
   }
 
+  @MessagePattern({ cmd: 'auth.setUserRole' })
+  setUserRole(@Payload() input: SetUserRoleInput) {
+    return this.run(
+      () => this.authService.setUserRole(input),
+      'Role pengguna belum dapat diubah. Coba lagi sebentar.',
+      'setUserRole',
+    );
+  }
+
   private async run<T>(
     operation: () => Promise<T>,
     fallbackMessage: string,
@@ -74,10 +80,7 @@ export class AuthServiceController {
       const diagnosticMessage =
         error instanceof Error
           ? error.message
-              .replace(
-                /postgres(?:ql)?:\/\/[^\s/:@]+:[^\s@]+@/gi,
-                'postgresql://[redacted]@',
-              )
+              .replace(/postgres(?:ql)?:\/\/[^\s/:@]+:[^\s@]+@/gi, 'postgresql://[redacted]@')
               .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
               .slice(0, 240)
           : '';
