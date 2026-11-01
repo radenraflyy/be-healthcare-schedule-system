@@ -8,19 +8,21 @@ datasource db {
 }
 
 model Schedule {
-  id         String         @id @default(uuid()) @db.Uuid
-  Objective  String
-  customerID String         @db.Uuid
-  doctorID   String         @db.Uuid
-  scheduleAt DateTime
-  status     ScheduleStatus @default(REQUESTED)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id          String         @id @default(uuid()) @db.Uuid
+  objective   String         @map("Objective")
+  customerId  String         @db.Uuid @map("customerID")
+  doctorId    String         @db.Uuid @map("doctorID")
+  scheduledAt DateTime       @map("scheduleAt")
+  status      ScheduleStatus @default(REQUESTED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  customer Customer @relation(fields: [customerID], references: [id], onDelete: Cascade)
-  doctor   Doctor   @relation(fields: [doctorID], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  doctor   Doctor   @relation(fields: [doctorId], references: [id], onDelete: Restrict)
 
-  @@index([scheduleAt])
+  @@index([scheduledAt])
+  @@unique([doctorId, scheduledAt])
+  @@map("Schedule")
 }
 
 model Customer {
@@ -31,7 +33,7 @@ model Customer {
   updatedAt DateTime   @updatedAt
   schedules Schedule[]
 
-  @@index([email])
+  @@map("Customer")
 }
 
 model Doctor {
@@ -40,6 +42,8 @@ model Doctor {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   schedules Schedule[]
+
+  @@map("Doctor")
 }
 
 enum ScheduleStatus {

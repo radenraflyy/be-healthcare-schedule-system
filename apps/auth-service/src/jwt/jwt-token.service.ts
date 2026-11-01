@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
+import { UnauthorizedException } from '../../../common/exceptions/index.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 interface AccessTokenClaims {
@@ -92,9 +93,8 @@ export class JwtTokenService {
   }
 
   private invalidTokenError(): RpcException {
-    return new RpcException({
-      code: 'UNAUTHENTICATED',
-      message: 'Token tidak valid atau sudah kedaluwarsa. Silakan login lagi.',
-    });
+    return new UnauthorizedException(
+      'Token tidak valid atau sudah kedaluwarsa. Silakan login lagi.',
+    );
   }
 }

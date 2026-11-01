@@ -63,6 +63,8 @@ services:
       NODE_ENV: production
       SCHEDULE_SERVICE_BIND_HOST: 0.0.0.0
       SCHEDULE_SERVICE_PORT: ${SCHEDULE_SERVICE_PORT:-4001}
+      AUTH_SERVICE_HOST: auth-service
+      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
       SCHEDULE_DATABASE_URL: ${SCHEDULE_DATABASE_URL:?Set SCHEDULE_DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
       OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
@@ -70,6 +72,8 @@ services:
     depends_on:
       schedule-postgres:
         condition: service_healthy
+      auth-service:
+        condition: service_started
       redis:
         condition: service_healthy
     networks:

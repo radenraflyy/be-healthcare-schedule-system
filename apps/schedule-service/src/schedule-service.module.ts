@@ -1,8 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { createObserveModule } from '@nestjs/observe';
-import { ScheduleServiceController } from './schedule-service.controller.js';
-import { ScheduleService } from './schedule-service.service.js';
+import { CustomersController } from './customers/customers.controller.js';
+import { CustomersService } from './customers/customers.service.js';
+import { DoctorsController } from './doctors/doctors.controller.js';
+import { DoctorsService } from './doctors/doctors.service.js';
+import { SchedulesController } from './schedules/schedules.controller.js';
+import { SchedulesService } from './schedules/schedules.service.js';
+import { HealthController } from './health/health.controller.js';
+import { ScheduleHealthService } from './health/health.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -16,9 +23,29 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'schedule-service',
       forwardLogs: true,
     }),
+    ClientsModule.register([
+      {
+        name: 'AUTH_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: process.env.AUTH_SERVICE_HOST ?? '127.0.0.1',
+          port: Number(process.env.AUTH_SERVICE_PORT ?? 3001),
+        },
+      },
+    ]),
     PrismaModule,
   ],
-  controllers: [ScheduleServiceController],
-  providers: [ScheduleService],
+  controllers: [
+    CustomersController,
+    DoctorsController,
+    SchedulesController,
+    HealthController,
+  ],
+  providers: [
+    CustomersService,
+    DoctorsService,
+    SchedulesService,
+    ScheduleHealthService,
+  ],
 })
 export class ScheduleServiceModule {}

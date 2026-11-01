@@ -1,11 +1,12 @@
 import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
-import { AuthService } from './auth-service.service.js';
+import { ServiceErrorException } from '../../../common/exceptions/index.js';
+import { AuthService } from './auth.service.js';
 import type {
   LoginInput,
   RegisterInput,
   TokenInput,
-} from './auth-service.service.js';
+} from './dto/auth.inputs.js';
 
 @Controller()
 export class AuthServiceController {
@@ -83,10 +84,7 @@ export class AuthServiceController {
       this.logger.error(
         `Unexpected error while processing auth.${operationName} (${errorType}${errorCode})${diagnosticMessage ? `: ${diagnosticMessage}` : ''}`,
       );
-      throw new RpcException({
-        code: 'SERVICE_ERROR',
-        message: fallbackMessage,
-      });
+      throw new ServiceErrorException(fallbackMessage);
     }
   }
 }

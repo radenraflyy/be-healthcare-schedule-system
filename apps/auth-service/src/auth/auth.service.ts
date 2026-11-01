@@ -1,24 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { hash, compare } from 'bcryptjs';
 import { TracerService } from '@nestjs/observe';
-import { PrismaService } from './prisma/prisma.service.js';
-import { JwtTokenService } from './jwt-token.service.js';
+import {
+  ConflictException,
+  UnauthorizedException,
+} from '../../../common/exceptions/index.js';
+import { hashPassword, verifyPassword } from '../helpers/password.helper.js';
+import {
+  extractToken,
+  normalizeEmail,
+  validatePassword,
+} from '../utils/auth-validation.utils.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { JwtTokenService } from '../jwt/jwt-token.service.js';
+import type {
+  LoginInput,
+  RegisterInput,
+  TokenInput,
+} from './dto/auth.inputs.js';
 
-export interface RegisterInput {
-  email: string;
-  password: string;
-  name?: string;
-}
-
-export interface LoginInput {
-  email: string;
-  password: string;
-}
-
-export interface TokenInput {
-  token: string;
-}
+export type {
+  LoginInput,
+  RegisterInput,
+  TokenInput,
+} from './dto/auth.inputs.js';
 
 const publicUserSelect = {
   id: true,
@@ -41,11 +45,11 @@ export class AuthService {
 
   async register(input: RegisterInput) {
     return this.observeOperation('register', async () => {
-      const email = this.normalizeEmail(input?.email);
-      const password = this.validatePassword(input?.password);
+      const email = normalizeEmail(input?.email);
+      const password = validatePassword(input?.password);
       const name =
         typeof input.name === 'string' ? input.name.trim() || null : null;
-      const passwordHash = await hash(password, 12);
+      const passwordHash = await hashPassword(password);
 
       try {
         return await this.prisma.user.create({
@@ -59,10 +63,9 @@ export class AuthService {
           'code' in error &&
           error.code === 'P2002'
         ) {
-          throw new RpcException({
-            code: 'CONFLICT',
-            message: 'Email tersebut sudah terdaftar. Gunakan email lain.',
-          });
+          throw new ConflictException(
+            'Email tersebut sudah terdaftar. Gunakan email lain.',
+          );
         }
         throw error;
       }
@@ -71,17 +74,16 @@ export class AuthService {
 
   async login(input: LoginInput) {
     return this.observeOperation('login', async () => {
-      const email = this.normalizeEmail(input?.email);
-      const password = this.validatePassword(input?.password, {
+      const email = normalizeEmail(input?.email);
+      const password = validatePassword(input?.password, {
         forLogin: true,
       });
       const user = await this.prisma.user.findUnique({ where: { email } });
 
-      if (!user || !(await compare(password, user.password))) {
-        throw new RpcException({
-          code: 'UNAUTHENTICATED',
-          message: 'Email atau password salah. Periksa kembali lalu coba lagi.',
-        });
+      if (!user || !(await verifyPassword(password, user.password))) {
+        throw new UnauthorizedException(
+          'Email atau password salah. Periksa kembali lalu coba lagi.',
+        );
       }
 
       return {
@@ -103,7 +105,7 @@ export class AuthService {
 
   async validateToken(input: TokenInput) {
     return this.observeOperation('validate_token', async () => {
-      const token = this.extractToken(input?.token);
+      const token = extractToken(input?.token);
       const claims = this.jwtTokenService.verifyAccessToken(token);
       const user = await this.prisma.user.findUnique({
         where: { id: claims.sub },
@@ -111,11 +113,9 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new RpcException({
-          code: 'UNAUTHENTICATED',
-          message:
-            'Token tidak valid atau sudah kedaluwarsa. Silakan login lagi.',
-        });
+        throw new UnauthorizedException(
+          'Token tidak valid atau sudah kedaluwarsa. Silakan login lagi.',
+        );
       }
 
       return user;
@@ -151,67 +151,5 @@ export class AuthService {
         duration.observe(performance.now() - startedAt, operation);
       }
     });
-  }
-
-  private normalizeEmail(value: unknown): string {
-    if (typeof value !== 'string') {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Email wajib diisi dengan format yang valid.',
-      });
-    }
-
-    const email = value.trim().toLowerCase();
-    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Email wajib diisi dengan format yang valid.',
-      });
-    }
-    return email;
-  }
-
-  private validatePassword(
-    value: unknown,
-    options: { forLogin?: boolean } = {},
-  ): string {
-    if (typeof value !== 'string') {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Password wajib diisi.',
-      });
-    }
-
-    const byteLength = Buffer.byteLength(value, 'utf8');
-    if (byteLength > 72) {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Password terlalu panjang. Maksimal 72 byte.',
-      });
-    }
-    if (!options.forLogin && value.length < 8) {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Password minimal terdiri dari 8 karakter.',
-      });
-    }
-    if (value.length === 0) {
-      throw new RpcException({
-        code: 'BAD_USER_INPUT',
-        message: 'Password wajib diisi.',
-      });
-    }
-    return value;
-  }
-
-  private extractToken(value: unknown): string {
-    if (typeof value !== 'string' || value.trim().length === 0) {
-      throw new RpcException({
-        code: 'UNAUTHENTICATED',
-        message: 'Token akses wajib disertakan.',
-      });
-    }
-    const token = value.trim();
-    return token.startsWith('Bearer ') ? token.slice(7).trim() : token;
   }
 }

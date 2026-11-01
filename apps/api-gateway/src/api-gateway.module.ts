@@ -5,9 +5,13 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { createObserveModule } from '@nestjs/observe';
 import type { Request, Response } from 'express';
-import { AUTH_SERVICE, SCHEDULE_SERVICE } from './gateway.constants.js';
-import { AuthResolver } from './auth.resolver.js';
-import { HealthResolver } from './health.resolver.js';
+import {
+  AUTH_SERVICE,
+  SCHEDULE_SERVICE,
+} from '../../common/constants/service-tokens.js';
+import { AuthResolver } from './auth/auth.resolver.js';
+import { HealthResolver } from './health/health.resolver.js';
+import { ScheduleResolver } from './schedule/schedule.resolver.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -27,7 +31,10 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       driver: ApolloDriver,
       autoSchemaFile: true,
       sortSchema: true,
-      context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
+      context: ({ req, res }: { req: Request; res: Response }) => ({
+        req,
+        res,
+      }),
       formatError: (error) => {
         const { stacktrace: _stacktrace, ...extensions } =
           error.extensions ?? {};
@@ -60,6 +67,6 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       },
     ]),
   ],
-  providers: [AuthResolver, HealthResolver],
+  providers: [AuthResolver, HealthResolver, ScheduleResolver],
 })
 export class ApiGatewayModule {}

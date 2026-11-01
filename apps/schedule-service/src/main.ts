@@ -1,6 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { Transport } from '@nestjs/microservices';
-import { ObserveInstrument, ScheduleServiceModule } from './schedule-service.module.js';
+import {
+  ObserveInstrument,
+  ScheduleServiceModule,
+} from './schedule-service.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(ScheduleServiceModule, {
