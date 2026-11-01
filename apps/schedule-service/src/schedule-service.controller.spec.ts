@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ScheduleServiceController } from './schedule-service.controller.js';
-import { ScheduleServiceService } from './schedule-service.service.js';
+import { ScheduleService } from './schedule-service.service.js';
 
 describe('ScheduleServiceController', () => {
   let scheduleServiceController: ScheduleServiceController;
@@ -9,7 +9,7 @@ describe('ScheduleServiceController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [ScheduleServiceController],
-      providers: [ScheduleServiceService],
+      providers: [ScheduleService],
     }).compile();
 
     scheduleServiceController = app.get<ScheduleServiceController>(

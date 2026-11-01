@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { createObserveModule } from '@nestjs/observe';
-import { AppController } from './auth-service.controller.js';
-import { AppService } from './auth-service.service.js';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { AuthService } from './auth-service.service.js';
+import { AuthServiceController } from './auth-service.controller.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -24,7 +24,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'be-healthcare-schedule-system',
     }),
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AuthServiceController],
+  providers: [AuthService],
 })
-export class AppModule {}
+export class AuthServiceModule {}
