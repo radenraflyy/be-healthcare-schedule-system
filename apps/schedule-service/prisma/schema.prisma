@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Schedule {
+  id         String         @id @default(uuid()) @db.Uuid
+  Objective  String
+  customerID String         @db.Uuid
+  doctorID   String         @db.Uuid
+  scheduleAt DateTime
+  status     ScheduleStatus @default(REQUESTED)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  customer Customer @relation(fields: [customerID], references: [id], onDelete: Cascade)
+  doctor   Doctor   @relation(fields: [doctorID], references: [id], onDelete: Cascade)
+
+  @@index([scheduleAt])
+}
+
+model Customer {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  email     String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  schedules Schedule[]
+
+  @@index([email])
+}
+
+model Doctor {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  schedules Schedule[]
+}
+
+enum ScheduleStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}

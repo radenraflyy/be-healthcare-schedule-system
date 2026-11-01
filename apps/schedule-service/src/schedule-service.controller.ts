@@ -1,11 +1,12 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
+import { MessagePattern } from '@nestjs/microservices';
 import { ScheduleService } from './schedule-service.service.js';
 
 @Controller()
 export class ScheduleServiceController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
-  @Get()
+  @MessagePattern({ cmd: 'schedule.health' })
   getHello(): string {
     return this.scheduleService.getHello();
   }

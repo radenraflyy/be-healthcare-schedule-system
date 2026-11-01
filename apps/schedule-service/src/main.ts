@@ -1,8 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { ScheduleServiceModule } from './schedule-service.module.js';
+import { Transport } from '@nestjs/microservices';
+import { ObserveInstrument, ScheduleServiceModule } from './schedule-service.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(ScheduleServiceModule);
-  await app.listen(process.env.port ?? 3000);
+  const app = await NestFactory.createMicroservice(ScheduleServiceModule, {
+    instrument: ObserveInstrument,
+    transport: Transport.TCP,
+    options: {
+      host: process.env.SCHEDULE_SERVICE_BIND_HOST ?? '0.0.0.0',
+      port: Number(process.env.SCHEDULE_SERVICE_PORT ?? 4001),
+    },
+  });
+  app.enableShutdownHooks();
+  await app.listen();
 }
 await bootstrap();
