@@ -85,6 +85,8 @@ Nilai di `.env.example` hanya untuk development lokal. Kalau Nest dijalankan lan
 
 ## Contoh GraphQL
 
+Dokumentasi API GraphQL lengkap, termasuk daftar operasi, argumen, hak akses, tipe hasil, dan contoh query tersedia di [docs/graphql-api.md](docs/graphql-api.md).
+
 Semua operasi tersedia di panel Docs pada Playground. Registrasi dan login tidak memerlukan token:
 
 ```graphql
