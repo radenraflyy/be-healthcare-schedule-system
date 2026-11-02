@@ -20,3 +20,11 @@ export interface SetUserRoleInput {
   userId: string;
   role: UserRole;
 }
+
+export interface CreateManagedUserInput {
+  token: string;
+  email: string;
+  password: string;
+  name?: string;
+  role: UserRole;
+}

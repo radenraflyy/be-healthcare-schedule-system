@@ -4,6 +4,7 @@ import { TracerService } from '@nestjs/observe';
 import {
   ConflictException,
   ForbiddenException,
+  InvalidCredentialsException,
   UnauthorizedException,
 } from '../../../common/exceptions/index.js';
 import { hashPassword, verifyPassword } from '../helpers/password.helper.js';
@@ -11,6 +12,7 @@ import { JwtTokenService } from '../jwt/jwt-token.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { extractToken, normalizeEmail, validatePassword } from '../utils/auth-validation.utils.js';
 import type {
+  CreateManagedUserInput,
   LoginInput,
   RegisterInput,
   SetUserRoleInput,
@@ -18,10 +20,12 @@ import type {
   UserRole,
 } from './dto/auth.inputs.js';
 import { AuthRateLimitService } from './rate-limit.service.js';
+import { TokenRevocationService } from './token-revocation.service.js';
 
 export type {
   LoginInput,
   RegisterInput,
+  CreateManagedUserInput,
   TokenInput,
   SetUserRoleInput,
   UserRole,
@@ -42,6 +46,7 @@ export class AuthService {
     private readonly jwtTokenService: JwtTokenService,
     private readonly tracer: TracerService,
     private readonly rateLimiter: AuthRateLimitService,
+    private readonly tokenRevocations: TokenRevocationService,
   ) {}
 
   getHello(): string {
@@ -85,7 +90,7 @@ export class AuthService {
       const user = await this.prisma.user.findUnique({ where: { email } });
 
       if (!user || !(await verifyPassword(password, user.password))) {
-        throw new UnauthorizedException(
+        throw new InvalidCredentialsException(
           'Email atau password salah. Periksa kembali lalu coba lagi.',
         );
       }
@@ -112,6 +117,7 @@ export class AuthService {
     return this.observeOperation('validate_token', async () => {
       const token = extractToken(input?.token);
       const claims = this.jwtTokenService.verifyAccessToken(token);
+      await this.tokenRevocations.assertNotRevoked(token);
       const user = await this.prisma.user.findUnique({
         where: { id: claims.sub },
         select: publicUserSelect,
@@ -127,8 +133,19 @@ export class AuthService {
     });
   }
 
+  async logout(input: TokenInput): Promise<boolean> {
+    return this.observeOperation('logout', async () => {
+      const token = extractToken(input?.token);
+      const claims = this.jwtTokenService.verifyAccessToken(token);
+      await this.tokenRevocations.revoke(token, claims.exp);
+      return true;
+    });
+  }
+
   async setUserRole(input: SetUserRoleInput) {
-    const claims = this.jwtTokenService.verifyAccessToken(extractToken(input?.token));
+    const token = extractToken(input?.token);
+    const claims = this.jwtTokenService.verifyAccessToken(token);
+    await this.tokenRevocations.assertNotRevoked(token);
     const actor = await this.prisma.user.findUnique({
       where: { id: claims.sub },
       select: { role: true },
@@ -149,8 +166,67 @@ export class AuthService {
     });
   }
 
+  async adminUsers(input: TokenInput) {
+    const token = extractToken(input?.token);
+    const claims = this.jwtTokenService.verifyAccessToken(token);
+    await this.tokenRevocations.assertNotRevoked(token);
+    const actor = await this.prisma.user.findUnique({
+      where: { id: claims.sub },
+      select: { role: true },
+    });
+    if (actor?.role !== 'ADMIN') {
+      throw new ForbiddenException('Hanya admin yang dapat melihat daftar pengguna.');
+    }
+    return this.prisma.user.findMany({
+      select: publicUserSelect,
+      orderBy: [{ createdAt: 'desc' }, { email: 'asc' }],
+    });
+  }
+
+  async createManagedUser(input: CreateManagedUserInput) {
+    const token = extractToken(input?.token);
+    const claims = this.jwtTokenService.verifyAccessToken(token);
+    await this.tokenRevocations.assertNotRevoked(token);
+    const actor = await this.prisma.user.findUnique({
+      where: { id: claims.sub },
+      select: { role: true },
+    });
+    if (actor?.role !== 'ADMIN') {
+      throw new ForbiddenException('Hanya admin yang dapat membuat akun.');
+    }
+
+    const email = normalizeEmail(input?.email);
+    const password = validatePassword(input?.password);
+    const name = typeof input.name === 'string' ? input.name.trim() || null : null;
+    if (!['ADMIN', 'DOCTOR', 'CUSTOMER'].includes(input.role)) {
+      throw new ForbiddenException('Role yang diminta tidak valid.');
+    }
+
+    try {
+      return await this.prisma.user.create({
+        data: {
+          email,
+          password: await hashPassword(password),
+          name,
+          role: input.role,
+        },
+        select: publicUserSelect,
+      });
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Email tersebut sudah terdaftar. Gunakan email lain.');
+      }
+      throw error;
+    }
+  }
+
   private async observeOperation<T>(
-    operation: 'register' | 'login' | 'validate_token',
+    operation: 'register' | 'login' | 'validate_token' | 'logout',
     run: () => Promise<T>,
   ): Promise<T> {
     const outcomes = this.tracer.counter('auth_operations_total', {
@@ -159,7 +235,7 @@ export class AuthService {
     });
     const duration = this.tracer.summary('auth_operation_duration_ms', {
       description: 'Authentication operation duration in milliseconds',
-      labels: ['register', 'login', 'validate_token'],
+      labels: ['register', 'login', 'validate_token', 'logout'],
       sampleSize: 256,
     });
     const startedAt = performance.now();

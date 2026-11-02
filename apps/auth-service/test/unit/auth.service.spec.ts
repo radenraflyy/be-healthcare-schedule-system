@@ -33,11 +33,16 @@ function createService(overrides: Record<string, unknown> = {}) {
     ) => callback({ setTag: vi.fn() }),
   };
   const rateLimiter = { consume: vi.fn().mockResolvedValue(undefined) };
+  const tokenRevocations = {
+    assertNotRevoked: vi.fn().mockResolvedValue(undefined),
+    revoke: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new AuthService(
     prisma as never,
     jwt as never,
     tracer as never,
     rateLimiter as never,
+    tokenRevocations as never,
   );
   return { service, prisma, jwt, rateLimiter, user, ...overrides };
 }

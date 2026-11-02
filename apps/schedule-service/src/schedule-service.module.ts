@@ -33,7 +33,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        redis: redisConnectionOptions(resolveRedisUrl(config)),
+        redis: redisConnectionOptions(resolveRedisUrl(config)) as never,
       }),
     }),
     BullModule.registerQueue({ name: EMAIL_NOTIFICATIONS_QUEUE }),

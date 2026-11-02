@@ -31,6 +31,7 @@ const SERVICE_OPERATIONS = [
   'doctor.create',
   'doctor.update',
   'doctor.list',
+  'doctor.unlinked',
   'doctor.get',
   'doctor.delete',
   'schedule.create',
@@ -62,6 +63,7 @@ export class ScheduleOperationService {
     'customer.list',
     'customer.get',
     'doctor.list',
+    'doctor.unlinked',
     'doctor.get',
     'schedule.list',
     'schedule.get',
@@ -187,6 +189,7 @@ export class ScheduleOperationService {
     if (operation.startsWith('doctor.') || operation.startsWith('availability.')) {
       return [
         'doctor.list',
+        'doctor.unlinked',
         'doctor.get',
         'availability.list',
         'availability.windows',

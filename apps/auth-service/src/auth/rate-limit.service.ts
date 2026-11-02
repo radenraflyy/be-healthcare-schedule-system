@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { Redis, type Redis as RedisClient } from 'ioredis';
 import { createHash } from 'node:crypto';
 
 import {
@@ -21,7 +21,7 @@ return count
 @Injectable()
 export class AuthRateLimitService implements OnModuleDestroy {
   private readonly logger = new Logger(AuthRateLimitService.name);
-  private readonly redis: Redis;
+  private readonly redis: RedisClient;
 
   constructor(private readonly config: ConfigService) {
     this.redis = new Redis({
@@ -44,16 +44,12 @@ export class AuthRateLimitService implements OnModuleDestroy {
       action === 'login' ? 'AUTH_LOGIN_RATE_WINDOW_SECONDS' : 'AUTH_REGISTER_RATE_WINDOW_SECONDS',
       action === 'login' ? 900 : 3600,
     );
+    const rateLimitKey = `healthcare:auth-rate:${action}:${createHash('sha256').update(normalizedIdentity).digest('hex')}`;
 
     let count: number;
     try {
       count = Number(
-        await this.redis.eval(
-          incrementWindowScript,
-          1,
-          `healthcare:auth-rate:${action}:${createHash('sha256').update(normalizedIdentity).digest('hex')}`,
-          String(windowSeconds * 1000),
-        ),
+        await this.redis.eval(incrementWindowScript, 1, rateLimitKey, String(windowSeconds * 1000)),
       );
     } catch {
       throw new ServiceUnavailableException(
@@ -62,10 +58,22 @@ export class AuthRateLimitService implements OnModuleDestroy {
     }
 
     if (count > limit) {
+      let ttlMilliseconds = windowSeconds * 1000;
+      try {
+        const currentTtl = await this.redis.pttl(rateLimitKey);
+        if (currentTtl > 0) ttlMilliseconds = currentTtl;
+      } catch {
+        // Keep a safe retry window if Redis cannot report the precise TTL.
+      }
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((ttlMilliseconds > 0 ? ttlMilliseconds : windowSeconds * 1000) / 1000),
+      );
       throw new TooManyRequestsException(
         action === 'login'
-          ? 'Terlalu banyak percobaan login. Coba lagi beberapa menit.'
+          ? 'Terlalu banyak percobaan login.'
           : 'Terlalu banyak pendaftaran untuk email ini. Coba lagi nanti.',
+        { limit, remaining: 0, retryAfterSeconds },
       );
     }
   }

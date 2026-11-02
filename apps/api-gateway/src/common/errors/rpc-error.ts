@@ -1,18 +1,19 @@
 import { GraphQLError } from 'graphql';
+
 import { findRpcErrorDetails } from '../../../../common/utils/rpc-error.utils.js';
 
-export function toGraphQLError(
-  error: unknown,
-  serviceName: string,
-): GraphQLError {
+export function toGraphQLError(error: unknown, serviceName: string): GraphQLError {
   const details = findRpcErrorDetails(error);
-  if (
-    details.code &&
-    details.message &&
-    details.code !== 'INTERNAL_SERVER_ERROR'
-  ) {
+  if (details.code && details.message && details.code !== 'INTERNAL_SERVER_ERROR') {
     return new GraphQLError(details.message, {
-      extensions: { code: details.code },
+      extensions: {
+        code: details.code,
+        ...(details.limit !== undefined ? { limit: details.limit } : {}),
+        ...(details.remaining !== undefined ? { remaining: details.remaining } : {}),
+        ...(details.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: details.retryAfterSeconds }
+          : {}),
+      },
     });
   }
 

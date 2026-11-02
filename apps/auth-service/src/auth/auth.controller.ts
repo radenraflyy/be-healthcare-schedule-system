@@ -3,7 +3,13 @@ import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 
 import { ServiceErrorException } from '../../../common/exceptions/index.js';
 import { AuthService } from './auth.service.js';
-import type { LoginInput, RegisterInput, SetUserRoleInput, TokenInput } from './dto/auth.inputs.js';
+import type {
+  CreateManagedUserInput,
+  LoginInput,
+  RegisterInput,
+  SetUserRoleInput,
+  TokenInput,
+} from './dto/auth.inputs.js';
 
 @Controller()
 export class AuthServiceController {
@@ -48,12 +54,39 @@ export class AuthServiceController {
     );
   }
 
+  @MessagePattern({ cmd: 'auth.logout' })
+  logout(@Payload() input: TokenInput) {
+    return this.run(
+      () => this.authService.logout(input),
+      'Logout belum dapat diproses. Coba lagi sebentar.',
+      'logout',
+    );
+  }
+
   @MessagePattern({ cmd: 'auth.setUserRole' })
   setUserRole(@Payload() input: SetUserRoleInput) {
     return this.run(
       () => this.authService.setUserRole(input),
       'Role pengguna belum dapat diubah. Coba lagi sebentar.',
       'setUserRole',
+    );
+  }
+
+  @MessagePattern({ cmd: 'auth.adminUsers' })
+  adminUsers(@Payload() input: TokenInput) {
+    return this.run(
+      () => this.authService.adminUsers(input),
+      'Daftar pengguna belum dapat dimuat. Coba lagi sebentar.',
+      'adminUsers',
+    );
+  }
+
+  @MessagePattern({ cmd: 'auth.createManagedUser' })
+  createManagedUser(@Payload() input: CreateManagedUserInput) {
+    return this.run(
+      () => this.authService.createManagedUser(input),
+      'Akun belum dapat dibuat. Coba lagi sebentar.',
+      'createManagedUser',
     );
   }
 

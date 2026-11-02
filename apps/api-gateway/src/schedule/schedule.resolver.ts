@@ -20,6 +20,7 @@ import type {
 } from '../../../common/types/authenticated-command.js';
 import { toGraphQLError } from '../common/errors/rpc-error.js';
 import type { GraphqlRequestContext } from '../common/types/graphql-context.js';
+import { reviveGraphqlDates } from '../common/utils/revive-graphql-dates.js';
 import {
   CustomerPageView,
   CustomerStatus,
@@ -194,6 +195,13 @@ export class ScheduleResolver {
     @Context('req') req: GraphqlRequestContext,
   ) {
     return this.send('doctor.list', { page, limit }, req);
+  }
+
+  @Query(() => [DoctorView], {
+    description: 'Mengambil profil dokter yang belum ditautkan ke akun.',
+  })
+  unlinkedDoctors(@Context('req') req: GraphqlRequestContext): Promise<DoctorView[]> {
+    return this.send('doctor.unlinked', {}, req);
   }
 
   @Query(() => DoctorView, {
@@ -401,7 +409,7 @@ export class ScheduleResolver {
         ),
       );
       if (req) req.observeUserId = result.userId;
-      return result.data;
+      return reviveGraphqlDates(result.data, command === 'availability.list');
     } catch (error) {
       throw toGraphQLError(error, 'schedule atau autentikasi');
     }

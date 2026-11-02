@@ -34,6 +34,7 @@
     "db:migrate:schedule": "prisma migrate dev --config apps/schedule-service/prisma7.config.ts",
     "db:deploy:auth": "prisma migrate deploy --config apps/auth-service/prisma7.config.ts",
     "db:deploy:schedule": "prisma migrate deploy --config apps/schedule-service/prisma7.config.ts",
+    "seed:demo-admin": "node scripts/seed-demo-admin.mjs",
     "db:studio:auth": "prisma studio --config apps/auth-service/prisma7.config.ts",
     "db:studio:schedule": "prisma studio --config apps/schedule-service/prisma7.config.ts",
     "lint": "eslint .",

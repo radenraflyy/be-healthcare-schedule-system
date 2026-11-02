@@ -32,9 +32,20 @@ export class DoctorsService extends ScheduleOperationService {
       if (user.role !== 'ADMIN')
         throw this.rpc('FORBIDDEN', 'Hanya admin yang dapat mengelola profil dokter.');
       const name = requiredText(input?.name, 'Nama dokter');
-      return this.prisma.doctor.create({
-        data: { name, userId: input?.userId ?? null },
-      });
+      const userId = input?.userId ? requiredUuid(input.userId, 'ID akun dokter') : null;
+      try {
+        return await this.prisma.doctor.create({ data: { name, userId } });
+      } catch (error) {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'P2002'
+        ) {
+          throw this.rpc('CONFLICT', 'Akun ini sudah terhubung ke profil dokter lain.');
+        }
+        throw error;
+      }
     });
   }
 
@@ -44,16 +55,25 @@ export class DoctorsService extends ScheduleOperationService {
         throw this.rpc('FORBIDDEN', 'Hanya admin yang dapat mengelola profil dokter.');
       const id = requiredUuid(input?.id, 'ID dokter');
       const name = requiredText(input?.name, 'Nama dokter');
+      const data: { name: string; userId?: string | null } = { name };
+      if (input?.userId !== undefined) {
+        data.userId = input.userId ? requiredUuid(input.userId, 'ID akun dokter') : null;
+      }
       try {
         return await this.prisma.doctor.update({
           where: { id },
-          data: {
-            name,
-            ...(input.userId !== undefined ? { userId: input.userId || null } : {}),
-          },
+          data,
         });
       } catch (error) {
         throwPrismaNotFound(error, 'Dokter tidak ditemukan.');
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'P2002'
+        ) {
+          throw this.rpc('CONFLICT', 'Akun ini sudah terhubung ke profil dokter lain.');
+        }
         throw error;
       }
     });
@@ -71,6 +91,21 @@ export class DoctorsService extends ScheduleOperationService {
         this.prisma.doctor.count(),
       ]);
       return createPage(items, page, limit, total);
+    });
+  }
+
+  unlinkedDoctors(payload: AuthenticatedCommand<Record<string, never>>) {
+    return this.execute('doctor.unlinked', payload, async (_input, user) => {
+      if (user.role !== 'ADMIN')
+        throw this.rpc(
+          'FORBIDDEN',
+          'Hanya admin yang dapat melihat profil dokter yang belum ditautkan.',
+        );
+      return this.prisma.doctor.findMany({
+        where: { userId: null },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, createdAt: true, updatedAt: true },
+      });
     });
   }
 

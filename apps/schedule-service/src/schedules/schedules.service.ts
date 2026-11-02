@@ -150,6 +150,12 @@ export class SchedulesService
           );
         }
       }
+      await this.notifyScheduleParticipants(
+        created,
+        'Permintaan janji temu baru',
+        `Permintaan janji temu dengan dr. ${created.doctor.name} pada ${created.scheduledAt.toISOString()} UTC telah dikirim.`,
+        `Permintaan janji temu baru dari ${created.customer.name} pada ${created.scheduledAt.toISOString()} UTC. Tujuan: ${created.objective}.`,
+      );
       await this.queueScheduleEmail('created', created);
       return created;
     });
@@ -235,6 +241,12 @@ export class SchedulesService
         if (user.role !== 'ADMIN')
           throw this.rpc('FORBIDDEN', 'Penghapusan jadwal hanya dapat dilakukan admin.');
         await this.cancelReminders(id);
+        await this.notifyScheduleParticipants(
+          existing,
+          'Janji temu dihapus',
+          `Janji temu Anda dengan dr. ${existing.doctor.name} pada ${existing.scheduledAt.toISOString()} UTC telah dihapus oleh admin.`,
+          `Janji temu dengan ${existing.customer.name} pada ${existing.scheduledAt.toISOString()} UTC telah dihapus oleh admin.`,
+        );
         await this.prisma.schedule.delete({ where: { id } });
         await this.queueScheduleEmail('deleted', existing);
         return true;
@@ -302,6 +314,29 @@ export class SchedulesService
       });
       if (input.status === 'CANCELLED' || input.status === 'COMPLETED')
         await this.cancelReminders(id);
+      if (input.status === 'CONFIRMED') {
+        await this.notifyScheduleParticipants(
+          updated,
+          'Janji temu dikonfirmasi',
+          `Janji temu Anda dengan dr. ${updated.doctor.name} telah dikonfirmasi untuk ${updated.scheduledAt.toISOString()} UTC.`,
+          `Anda telah mengonfirmasi janji temu dengan ${updated.customer.name} pada ${updated.scheduledAt.toISOString()} UTC.`,
+        );
+      } else if (input.status === 'CANCELLED') {
+        const reason = updated.cancelReason ? ` Alasan: ${updated.cancelReason}` : '';
+        await this.notifyScheduleParticipants(
+          updated,
+          'Janji temu dibatalkan',
+          `Janji temu Anda dengan dr. ${updated.doctor.name} pada ${updated.scheduledAt.toISOString()} UTC telah dibatalkan.${reason}`,
+          `Janji temu dengan ${updated.customer.name} pada ${updated.scheduledAt.toISOString()} UTC telah dibatalkan.${reason}`,
+        );
+      } else if (input.status === 'COMPLETED') {
+        await this.notifyScheduleParticipants(
+          updated,
+          'Janji temu selesai',
+          `Janji temu Anda dengan dr. ${updated.doctor.name} telah ditandai selesai.`,
+          `Janji temu dengan ${updated.customer.name} telah ditandai selesai.`,
+        );
+      }
       return updated;
     });
   }
@@ -333,6 +368,12 @@ export class SchedulesService
           await this.cancelReminders(id);
           await this.createReminders(id, schedule.customer.userId, scheduledAt);
         }
+        await this.notifyScheduleParticipants(
+          updated,
+          'Jadwal janji temu diubah',
+          `Janji temu Anda dengan dr. ${updated.doctor.name} dijadwalkan ulang menjadi ${updated.scheduledAt.toISOString()} UTC.`,
+          `Janji temu dengan ${updated.customer.name} dijadwalkan ulang menjadi ${updated.scheduledAt.toISOString()} UTC.`,
+        );
         return updated;
       } catch (error) {
         if (this.isOverlapError(error) || prismaErrorCode(error) === 'P2002') {
@@ -468,6 +509,38 @@ export class SchedulesService
     } catch (error) {
       this.logger.error(
         `Could not queue ${event} email for schedule ${schedule.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+  }
+
+  private async notifyScheduleParticipants(
+    schedule: {
+      id: string;
+      customer: { userId: string | null };
+      doctor: { userId: string | null };
+    },
+    title: string,
+    customerMessage: string,
+    doctorMessage: string,
+  ): Promise<void> {
+    const recipients = new Map<string, string>();
+    if (schedule.customer.userId) recipients.set(schedule.customer.userId, customerMessage);
+    if (schedule.doctor.userId) recipients.set(schedule.doctor.userId, doctorMessage);
+    if (recipients.size === 0) return;
+
+    try {
+      await this.prisma.notification.createMany({
+        data: [...recipients].map(([userId, message]) => ({
+          userId,
+          scheduleId: schedule.id,
+          title,
+          message,
+        })),
+      });
+      await this.cache.invalidate('notification.list');
+    } catch (error) {
+      this.logger.error(
+        `Could not create in-app notification for appointment ${schedule.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
       );
     }
   }

@@ -5,6 +5,7 @@ import { createObserveModule } from '@nestjs/observe';
 import { AuthServiceController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthRateLimitService } from './auth/rate-limit.service.js';
+import { TokenRevocationService } from './auth/token-revocation.service.js';
 import { JwtTokenService } from './jwt/jwt-token.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -24,6 +25,6 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
   ],
   controllers: [AuthServiceController],
-  providers: [AuthService, JwtTokenService, AuthRateLimitService],
+  providers: [AuthService, JwtTokenService, AuthRateLimitService, TokenRevocationService],
 })
 export class AuthServiceModule {}

@@ -1,0 +1,30 @@
+-- Repeatable local development data. These are doctor profiles, not login users.
+INSERT INTO "Doctor" ("id", "name", "userId", "createdAt", "updatedAt")
+VALUES
+  ('11111111-1111-4111-8111-111111111111', 'dr. Aditya Pratama', NULL, NOW(), NOW()),
+  ('22222222-2222-4222-8222-222222222222', 'dr. Siti Rahmawati', NULL, NOW(), NOW()),
+  ('33333333-3333-4333-8333-333333333333', 'dr. Budi Santoso', NULL, NOW(), NOW())
+ON CONFLICT ("id") DO UPDATE
+SET "name" = EXCLUDED."name", "updatedAt" = NOW();
+
+-- dayOfWeek uses JavaScript numbering: 0 = Sunday, 1 = Monday, ..., 6 = Saturday.
+INSERT INTO "DoctorAvailability"
+  ("id", "doctorId", "dayOfWeek", "startMinute", "endMinute", "slotMinutes", "createdAt", "updatedAt")
+VALUES
+  ('a1111111-1111-4111-8111-111111111101', '11111111-1111-4111-8111-111111111111', 1, 540, 720, 30, NOW(), NOW()),
+  ('a1111111-1111-4111-8111-111111111102', '11111111-1111-4111-8111-111111111111', 3, 540, 720, 30, NOW(), NOW()),
+  ('a1111111-1111-4111-8111-111111111103', '11111111-1111-4111-8111-111111111111', 5, 540, 720, 30, NOW(), NOW()),
+  ('a2222222-2222-4222-8222-222222222201', '22222222-2222-4222-8222-222222222222', 2, 780, 1020, 30, NOW(), NOW()),
+  ('a2222222-2222-4222-8222-222222222202', '22222222-2222-4222-8222-222222222222', 4, 780, 1020, 30, NOW(), NOW()),
+  ('a3333333-3333-4333-8333-333333333301', '33333333-3333-4333-8333-333333333333', 1, 540, 900, 30, NOW(), NOW()),
+  ('a3333333-3333-4333-8333-333333333302', '33333333-3333-4333-8333-333333333333', 2, 540, 900, 30, NOW(), NOW()),
+  ('a3333333-3333-4333-8333-333333333303', '33333333-3333-4333-8333-333333333333', 3, 540, 900, 30, NOW(), NOW()),
+  ('a3333333-3333-4333-8333-333333333304', '33333333-3333-4333-8333-333333333333', 4, 540, 900, 30, NOW(), NOW()),
+  ('a3333333-3333-4333-8333-333333333305', '33333333-3333-4333-8333-333333333333', 5, 540, 900, 30, NOW(), NOW())
+ON CONFLICT ("id") DO UPDATE
+SET "doctorId" = EXCLUDED."doctorId",
+    "dayOfWeek" = EXCLUDED."dayOfWeek",
+    "startMinute" = EXCLUDED."startMinute",
+    "endMinute" = EXCLUDED."endMinute",
+    "slotMinutes" = EXCLUDED."slotMinutes",
+    "updatedAt" = NOW();

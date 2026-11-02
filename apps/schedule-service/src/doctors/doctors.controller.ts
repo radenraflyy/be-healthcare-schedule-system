@@ -26,6 +26,11 @@ export class DoctorsController {
     return this.doctors.doctors(input);
   }
 
+  @MessagePattern({ cmd: 'doctor.unlinked' })
+  unlinked(@Payload() input: AuthenticatedCommand<Record<string, never>>) {
+    return this.doctors.unlinkedDoctors(input);
+  }
+
   @MessagePattern({ cmd: 'doctor.get' })
   get(@Payload() input: AuthenticatedCommand<{ id?: string }>) {
     return this.doctors.doctor(input);
