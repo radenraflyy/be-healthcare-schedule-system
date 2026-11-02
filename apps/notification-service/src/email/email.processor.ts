@@ -22,9 +22,10 @@ export class EmailProcessor {
   constructor(private readonly emailService: EmailService) {}
 
   @EventPattern(SCHEDULE_EMAIL_EVENT)
-  async process(@Payload() job: ScheduleEmailJob, @Ctx() context: RmqContext): Promise<void> {
-    const channel = context.getChannelRef() as Channel;
-    const message = context.getMessage() as ConsumeMessage;
+  async process(@Payload() job: ScheduleEmailJob, @Ctx() context: unknown): Promise<void> {
+    const rmqContext = context as RmqContext;
+    const channel = rmqContext.getChannelRef() as Channel;
+    const message = rmqContext.getMessage() as ConsumeMessage;
 
     await this.ensureRetryTopology(channel);
 
