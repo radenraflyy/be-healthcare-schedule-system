@@ -2,7 +2,7 @@ import { Inject } from '@nestjs/common';
 import { Args, Context, ID, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { ClientProxy } from '@nestjs/microservices';
 import { GraphQLError } from 'graphql';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import { AUTH_SERVICE } from '../../../common/constants/service-tokens.js';
 import { toGraphQLError } from '../common/errors/rpc-error.js';
@@ -172,7 +172,9 @@ export class AuthResolver {
     input: TInput,
   ): Promise<TResult> {
     try {
-      return await firstValueFrom(this.authService.send<TResult, TInput>(pattern, input));
+      return await firstValueFrom(
+        this.authService.send<TResult, TInput>(pattern, input).pipe(timeout({ first: 5_000 })),
+      );
     } catch (error) {
       throw toGraphQLError(error, 'autentikasi');
     }

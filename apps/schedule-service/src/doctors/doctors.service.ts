@@ -109,12 +109,38 @@ export class DoctorsService extends ScheduleOperationService {
     });
   }
 
+  doctorAccountLinks(payload: AuthenticatedCommand<Record<string, never>>) {
+    return this.execute('doctor.links', payload, async (_input, user) => {
+      if (user.role !== 'ADMIN')
+        throw this.rpc('FORBIDDEN', 'Hanya admin yang dapat melihat tautan akun dokter.');
+      return this.prisma.doctor.findMany({
+        where: { userId: { not: null } },
+        orderBy: { name: 'asc' },
+        select: { userId: true, name: true },
+      });
+    });
+  }
+
   doctor(payload: AuthenticatedCommand<{ id?: string }>) {
     return this.execute('doctor.get', payload, async (input) => {
       const id = requiredUuid(input?.id, 'ID dokter');
       const result = await this.prisma.doctor.findUnique({ where: { id } });
       if (!result) throw this.rpc('NOT_FOUND', 'Dokter tidak ditemukan.');
       return result;
+    });
+  }
+
+  myDoctor(payload: AuthenticatedCommand<Record<string, never>>) {
+    return this.execute('doctor.me', payload, async (_input, user) => {
+      if (user.role !== 'DOCTOR')
+        throw this.rpc('FORBIDDEN', 'Fitur ini hanya tersedia untuk akun dokter.');
+      const doctor = await this.prisma.doctor.findUnique({ where: { userId: user.id } });
+      if (!doctor)
+        throw this.rpc(
+          'NOT_FOUND',
+          'Profil dokter belum terhubung ke akun ini. Hubungi admin untuk menautkannya.',
+        );
+      return doctor;
     });
   }
 

@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
 
+import { RabbitMqRpcAckInterceptor } from '../../common/rabbitmq/rabbitmq-rpc-ack.interceptor.js';
 import { AuthServiceController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthRateLimitService } from './auth/rate-limit.service.js';
@@ -25,6 +27,12 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
   ],
   controllers: [AuthServiceController],
-  providers: [AuthService, JwtTokenService, AuthRateLimitService, TokenRevocationService],
+  providers: [
+    AuthService,
+    JwtTokenService,
+    AuthRateLimitService,
+    TokenRevocationService,
+    { provide: APP_INTERCEPTOR, useClass: RabbitMqRpcAckInterceptor },
+  ],
 })
 export class AuthServiceModule {}

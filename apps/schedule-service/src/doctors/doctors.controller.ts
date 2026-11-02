@@ -31,9 +31,19 @@ export class DoctorsController {
     return this.doctors.unlinkedDoctors(input);
   }
 
+  @MessagePattern({ cmd: 'doctor.links' })
+  links(@Payload() input: AuthenticatedCommand<Record<string, never>>) {
+    return this.doctors.doctorAccountLinks(input);
+  }
+
   @MessagePattern({ cmd: 'doctor.get' })
   get(@Payload() input: AuthenticatedCommand<{ id?: string }>) {
     return this.doctors.doctor(input);
+  }
+
+  @MessagePattern({ cmd: 'doctor.me' })
+  me(@Payload() input: AuthenticatedCommand<Record<string, never>>) {
+    return this.doctors.myDoctor(input);
   }
 
   @MessagePattern({ cmd: 'doctor.delete' })

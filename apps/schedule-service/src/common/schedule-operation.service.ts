@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { TracerService } from '@nestjs/observe';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import {
   BadRequestException,
@@ -32,7 +32,9 @@ const SERVICE_OPERATIONS = [
   'doctor.update',
   'doctor.list',
   'doctor.unlinked',
+  'doctor.links',
   'doctor.get',
+  'doctor.me',
   'doctor.delete',
   'schedule.create',
   'schedule.list',
@@ -64,7 +66,9 @@ export class ScheduleOperationService {
     'customer.get',
     'doctor.list',
     'doctor.unlinked',
+    'doctor.links',
     'doctor.get',
+    'doctor.me',
     'schedule.list',
     'schedule.get',
     'availability.list',
@@ -111,10 +115,9 @@ export class ScheduleOperationService {
     }
     try {
       return await firstValueFrom(
-        this.authService.send<AuthUser, { token: string }>(
-          { cmd: 'auth.validateToken' },
-          { token },
-        ),
+        this.authService
+          .send<AuthUser, { token: string }>({ cmd: 'auth.validateToken' }, { token })
+          .pipe(timeout({ first: 5_000 })),
       );
     } catch (error) {
       const details = findRpcErrorDetails(error);
@@ -190,7 +193,9 @@ export class ScheduleOperationService {
       return [
         'doctor.list',
         'doctor.unlinked',
+        'doctor.links',
         'doctor.get',
+        'doctor.me',
         'availability.list',
         'availability.windows',
         'schedule.list',

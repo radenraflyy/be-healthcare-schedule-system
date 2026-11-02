@@ -193,7 +193,9 @@ Semua nama operasi di bawah adalah field langsung pada root `Query` atau `Mutati
 | --- | --- | --- | --- |
 | `doctors` | Query → `DoctorPage!` | `page: Int = 1`, `limit: Int = 20` | Semua role terautentikasi. |
 | `doctor` | Query → `Doctor!` | `id: ID!` | Semua role terautentikasi. |
+| `myDoctor` | Query → `Doctor!` | Tidak ada | Akun dokter. Mengambil profil yang tertaut ke akun saat ini; admin harus menautkan profil terlebih dahulu. |
 | `unlinkedDoctors` | Query → `[Doctor!]!` | Tidak ada | Admin. Mengambil profil yang belum tertaut ke akun dokter. |
+| `doctorAccountLinks` | Query → `[DoctorAccountLink!]!` | Tidak ada | Admin. Mengambil nama profil dokter beserta ID akun yang sudah tertaut. |
 | `createDoctor` | Mutation → `Doctor!` | `name: String!`, `userId: ID` | Admin. Membuat profil; `userId` opsional untuk menautkan akun yang sudah dibuat. Satu akun hanya dapat tertaut ke satu profil. |
 | `updateDoctor` | Mutation → `Doctor!` | `id: ID!`, `name: String!`, `userId: ID` | Admin. Mengubah profil/tautan. Kirim `userId: null` untuk melepas tautan. |
 | `deleteDoctor` | Mutation → `Boolean!` | `id: ID!` | Admin. Dokter tidak dapat dihapus jika masih punya janji temu. |
@@ -417,4 +419,3 @@ Respons GraphQL dapat memuat `data` dan/atau `errors`. Untuk operasi yang gagal,
 GraphQL umumnya mengirim HTTP `200` untuk respons yang berhasil diproses oleh endpoint GraphQL, termasuk saat resolver mengembalikan `errors`. Untuk mengetahui hasil bisnis operasi, periksa isi JSON GraphQL dan `extensions.code`, bukan hanya status HTTP.
 
 Jika header CORS atau respons tidak muncul sama sekali di browser, pastikan `CORS_ORIGINS` backend mencakup origin frontend, API Gateway dapat dijangkau, dan host/port dalam konfigurasi FE menunjuk ke backend yang aktif.
-

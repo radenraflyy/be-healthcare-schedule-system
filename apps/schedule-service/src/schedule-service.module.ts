@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ClientsModule } from '@nestjs/microservices';
 import { createObserveModule } from '@nestjs/observe';
 
@@ -8,6 +9,7 @@ import {
   AUTH_SERVICE_QUEUE,
   NOTIFICATION_SERVICE_QUEUE,
 } from '../../common/constants/service-tokens.js';
+import { RabbitMqRpcAckInterceptor } from '../../common/rabbitmq/rabbitmq-rpc-ack.interceptor.js';
 import { rabbitMqClientOptions } from '../../common/rabbitmq/rabbitmq.options.js';
 import { RedisCacheService } from './common/redis-cache.service.js';
 import { RedisQueueService } from './common/redis-queue.service.js';
@@ -63,6 +65,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     RedisCacheService,
     ScheduleEmailQueueService,
     WorkflowsService,
+    { provide: APP_INTERCEPTOR, useClass: RabbitMqRpcAckInterceptor },
   ],
 })
 export class ScheduleServiceModule {}

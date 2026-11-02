@@ -3,6 +3,13 @@ import { GraphQLError } from 'graphql';
 import { findRpcErrorDetails } from '../../../../common/utils/rpc-error.utils.js';
 
 export function toGraphQLError(error: unknown, serviceName: string): GraphQLError {
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return new GraphQLError(
+      `Layanan ${serviceName} tidak merespons dalam batas waktu. Pastikan servicenya berjalan lalu coba lagi.`,
+      { extensions: { code: 'SERVICE_UNAVAILABLE' } },
+    );
+  }
+
   const details = findRpcErrorDetails(error);
   if (details.code && details.message && details.code !== 'INTERNAL_SERVER_ERROR') {
     return new GraphQLError(details.message, {

@@ -70,6 +70,12 @@ export class DoctorView {
   @Field(() => GraphQLISODateTime) updatedAt: Date;
 }
 
+@ObjectType('DoctorAccountLink')
+export class DoctorAccountLinkView {
+  @Field(() => ID) userId: string;
+  @Field(() => String) name: string;
+}
+
 @ObjectType('Schedule', {
   description: 'Janji temu customer dengan dokter beserta status dan waktu konsultasi.',
 })

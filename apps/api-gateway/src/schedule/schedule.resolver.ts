@@ -11,7 +11,7 @@ import {
 } from '@nestjs/graphql';
 import { ClientProxy } from '@nestjs/microservices';
 import { GraphQLError } from 'graphql';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import { SCHEDULE_SERVICE } from '../../../common/constants/service-tokens.js';
 import type {
@@ -25,6 +25,7 @@ import {
   CustomerPageView,
   CustomerStatus,
   CustomerView,
+  DoctorAccountLinkView,
   DoctorAvailabilityView,
   DoctorPageView,
   DoctorView,
@@ -204,6 +205,13 @@ export class ScheduleResolver {
     return this.send('doctor.unlinked', {}, req);
   }
 
+  @Query(() => [DoctorAccountLinkView], {
+    description: 'Mengambil nama profil dokter yang tertaut ke akun, hanya untuk admin.',
+  })
+  doctorAccountLinks(@Context('req') req: GraphqlRequestContext): Promise<DoctorAccountLinkView[]> {
+    return this.send('doctor.links', {}, req);
+  }
+
   @Query(() => DoctorView, {
     description: 'Mengambil dokter berdasarkan UUID.',
   })
@@ -212,6 +220,13 @@ export class ScheduleResolver {
     @Context('req') req: GraphqlRequestContext,
   ): Promise<DoctorView> {
     return this.send('doctor.get', { id }, req);
+  }
+
+  @Query(() => DoctorView, {
+    description: 'Mengambil profil dokter yang terhubung ke akun dokter saat ini.',
+  })
+  myDoctor(@Context('req') req: GraphqlRequestContext): Promise<DoctorView> {
+    return this.send('doctor.me', {}, req);
   }
 
   @Mutation(() => Boolean, {
@@ -403,10 +418,12 @@ export class ScheduleResolver {
     const token = this.readToken(req);
     try {
       const result = await firstValueFrom(
-        this.scheduleService.send<AuthenticatedResult<TResult>, AuthenticatedCommand<TInput>>(
-          { cmd: command },
-          { token, input },
-        ),
+        this.scheduleService
+          .send<AuthenticatedResult<TResult>, AuthenticatedCommand<TInput>>(
+            { cmd: command },
+            { token, input },
+          )
+          .pipe(timeout({ first: 5_000 })),
       );
       if (req) req.observeUserId = result.userId;
       return reviveGraphqlDates(result.data, command === 'availability.list');
