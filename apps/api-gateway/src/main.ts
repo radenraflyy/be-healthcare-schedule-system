@@ -12,7 +12,13 @@ async function bootstrap() {
     .filter(Boolean);
   app.enableCors({
     origin: corsOrigins,
-    exposedHeaders: ['RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
+    exposedHeaders: [
+      'RateLimit-Limit',
+      'RateLimit-Remaining',
+      'RateLimit-Reset',
+      'Retry-After',
+      'X-Request-Id',
+    ],
   });
   app.enableShutdownHooks();
   await app.listen(Number(process.env.API_GATEWAY_PORT ?? 3000), '0.0.0.0');

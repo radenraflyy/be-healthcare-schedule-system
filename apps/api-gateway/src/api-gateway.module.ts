@@ -1,13 +1,21 @@
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
+import type { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ClientsModule } from '@nestjs/microservices';
 import { createObserveModule } from '@nestjs/observe';
 import type { Request, Response } from 'express';
 
-import { AUTH_SERVICE, SCHEDULE_SERVICE } from '../../common/constants/service-tokens.js';
+import {
+  AUTH_SERVICE,
+  AUTH_SERVICE_QUEUE,
+  SCHEDULE_SERVICE,
+  SCHEDULE_SERVICE_QUEUE,
+} from '../../common/constants/service-tokens.js';
+import { rabbitMqClientOptions } from '../../common/rabbitmq/rabbitmq.options.js';
 import { AuthResolver } from './auth/auth.resolver.js';
+import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware.js';
 import { HealthResolver } from './health/health.resolver.js';
 import { ScheduleResolver } from './schedule/schedule.resolver.js';
 
@@ -50,24 +58,16 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       },
     }),
     ClientsModule.register([
-      {
-        name: AUTH_SERVICE,
-        transport: Transport.TCP,
-        options: {
-          host: process.env.AUTH_SERVICE_HOST ?? '127.0.0.1',
-          port: Number(process.env.AUTH_SERVICE_PORT ?? 4002),
-        },
-      },
-      {
-        name: SCHEDULE_SERVICE,
-        transport: Transport.TCP,
-        options: {
-          host: process.env.SCHEDULE_SERVICE_HOST ?? '127.0.0.1',
-          port: Number(process.env.SCHEDULE_SERVICE_PORT ?? 4001),
-        },
-      },
+      { name: AUTH_SERVICE, ...rabbitMqClientOptions(AUTH_SERVICE_QUEUE) },
+      { name: SCHEDULE_SERVICE, ...rabbitMqClientOptions(SCHEDULE_SERVICE_QUEUE) },
     ]),
   ],
   providers: [AuthResolver, HealthResolver, ScheduleResolver],
 })
-export class ApiGatewayModule {}
+export class ApiGatewayModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RequestLoggingMiddleware)
+      .forRoutes({ path: 'graphql', method: RequestMethod.ALL });
+  }
+}

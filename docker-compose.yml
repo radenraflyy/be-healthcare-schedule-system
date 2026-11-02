@@ -11,10 +11,7 @@ services:
       GRAPHQL_PLAYGROUND_ENABLED: ${GRAPHQL_PLAYGROUND_ENABLED:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       API_GATEWAY_PORT: ${API_GATEWAY_PORT:-3000}
-      AUTH_SERVICE_HOST: auth-service
-      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
-      SCHEDULE_SERVICE_HOST: schedule-service
-      SCHEDULE_SERVICE_PORT: ${SCHEDULE_SERVICE_PORT:-4001}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-healthcare}:${RABBITMQ_PASSWORD:-healthcare-local}@rabbitmq:5672
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
       AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-5}
       AUTH_LOGIN_RATE_WINDOW_SECONDS: ${AUTH_LOGIN_RATE_WINDOW_SECONDS:-900}
@@ -31,6 +28,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - healthcare-network
 
@@ -43,8 +42,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      AUTH_SERVICE_BIND_HOST: 0.0.0.0
-      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-healthcare}:${RABBITMQ_PASSWORD:-healthcare-local}@rabbitmq:5672
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?Set AUTH_DATABASE_URL in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
@@ -59,6 +57,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - healthcare-network
 
@@ -71,10 +71,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      SCHEDULE_SERVICE_BIND_HOST: 0.0.0.0
-      SCHEDULE_SERVICE_PORT: ${SCHEDULE_SERVICE_PORT:-4001}
-      AUTH_SERVICE_HOST: auth-service
-      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-4002}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-healthcare}:${RABBITMQ_PASSWORD:-healthcare-local}@rabbitmq:5672
       SCHEDULE_DATABASE_URL: ${SCHEDULE_DATABASE_URL:?Set SCHEDULE_DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
       QUERY_CACHE_TTL_SECONDS: ${QUERY_CACHE_TTL_SECONDS:-30}
@@ -87,8 +84,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-      notification-service:
-        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     networks:
       - healthcare-network
 
@@ -101,7 +98,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-healthcare}:${RABBITMQ_PASSWORD:-healthcare-local}@rabbitmq:5672
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -111,7 +108,7 @@ services:
       OBSERVE_APP_KEY: ${OBSERVE_APP_KEY:-YOUR_APP_KEY}
       OBSERVE_APP_SECRET: ${OBSERVE_APP_SECRET:-YOUR_APP_SECRET}
     depends_on:
-      redis:
+      rabbitmq:
         condition: service_healthy
       mailpit:
         condition: service_started
@@ -184,6 +181,25 @@ services:
     networks:
       - healthcare-network
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-healthcare}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-healthcare-local}
+    ports:
+      - '127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672'
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - healthcare-network
+
   redisinsight:
     image: redis/redisinsight:latest
     restart: unless-stopped
@@ -210,6 +226,7 @@ volumes:
   schedule_postgres_data:
   redis_data:
   redisinsight_data:
+  rabbitmq_data:
 
 networks:
   healthcare-network:

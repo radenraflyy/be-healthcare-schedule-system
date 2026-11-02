@@ -1,32 +1,29 @@
-import { InjectQueue } from '@nestjs/bull';
-import { Injectable } from '@nestjs/common';
-import type { Queue } from 'bull';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
-import { EMAIL_NOTIFICATIONS_QUEUE } from '../../../common/constants/queue-names.js';
+import {
+  NOTIFICATION_SERVICE_QUEUE,
+  SCHEDULE_EMAIL_EVENT,
+} from '../../../common/constants/service-tokens.js';
 import type { ScheduleEmailJob } from '../../../common/types/schedule-email-job.js';
 
 @Injectable()
 export class ScheduleEmailQueueService {
   constructor(
-    @InjectQueue(EMAIL_NOTIFICATIONS_QUEUE)
-    private readonly queue: Queue<ScheduleEmailJob>,
+    @Inject(NOTIFICATION_SERVICE_QUEUE)
+    private readonly notificationService: ClientProxy,
   ) {}
 
   async scheduleCreated(job: ScheduleEmailJob): Promise<void> {
-    await this.enqueue(job, `schedule-created-${job.scheduleId}`);
+    await this.enqueue(job);
   }
 
   async scheduleDeleted(job: ScheduleEmailJob): Promise<void> {
-    await this.enqueue(job, `schedule-deleted-${job.scheduleId}`);
+    await this.enqueue(job);
   }
 
-  private async enqueue(job: ScheduleEmailJob, jobId: string): Promise<void> {
-    await this.queue.add(`schedule-${job.event}`, job, {
-      jobId,
-      attempts: 5,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: { age: 7 * 24 * 60 * 60, count: 10000 },
-      removeOnFail: { age: 30 * 24 * 60 * 60 },
-    });
+  private async enqueue(job: ScheduleEmailJob): Promise<void> {
+    await firstValueFrom(this.notificationService.emit(SCHEDULE_EMAIL_EVENT, job));
   }
 }

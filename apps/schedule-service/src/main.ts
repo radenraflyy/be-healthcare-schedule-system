@@ -1,18 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { Transport } from '@nestjs/microservices';
-import {
-  ObserveInstrument,
-  ScheduleServiceModule,
-} from './schedule-service.module.js';
+
+import { SCHEDULE_SERVICE_QUEUE } from '../../common/constants/service-tokens.js';
+import { rabbitMqServerOptions } from '../../common/rabbitmq/rabbitmq.options.js';
+import { ObserveInstrument, ScheduleServiceModule } from './schedule-service.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(ScheduleServiceModule, {
     instrument: ObserveInstrument,
-    transport: Transport.TCP,
-    options: {
-      host: process.env.SCHEDULE_SERVICE_BIND_HOST ?? '0.0.0.0',
-      port: Number(process.env.SCHEDULE_SERVICE_PORT ?? 3002),
-    },
+    ...rabbitMqServerOptions(SCHEDULE_SERVICE_QUEUE),
   });
   app.enableShutdownHooks();
   await app.listen();

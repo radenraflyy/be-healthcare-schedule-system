@@ -39,23 +39,27 @@ describe('notification email worker', () => {
     );
   });
 
-  it('registers Bull handlers for both appointment events and dispatches jobs', async () => {
-    const handlers = new Map<string, (job: unknown) => Promise<void>>();
-    const queue = {
-      process: vi.fn((name: string, handler: (job: unknown) => Promise<void>) => {
-        handlers.set(name, handler);
-      }),
-    };
+  it('dispatches RabbitMQ schedule email events to the email service', async () => {
     const emailService = {
       sendScheduleEmail: vi.fn().mockResolvedValue(undefined),
     };
-    const processor = new EmailProcessor(queue as never, emailService as never);
-    processor.onModuleInit();
-    await handlers.get('schedule-created')?.({ data: job });
-    await handlers.get('schedule-deleted')?.({
-      data: { ...job, event: 'deleted' },
-    });
-    expect(queue.process).toHaveBeenCalledTimes(2);
+    const processor = new EmailProcessor(emailService as never);
+    const channel = {
+      assertQueue: vi.fn().mockResolvedValue(undefined),
+      ack: vi.fn(),
+    };
+    const context = {
+      getChannelRef: () => channel,
+      getMessage: () => ({ properties: { headers: {} } }),
+    };
+    await processor.process(job, context as never);
+    await processor.process({ ...job, event: 'deleted' }, context as never);
     expect(emailService.sendScheduleEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.sendScheduleEmail).toHaveBeenNthCalledWith(1, job);
+    expect(emailService.sendScheduleEmail).toHaveBeenNthCalledWith(2, {
+      ...job,
+      event: 'deleted',
+    });
+    expect(channel.ack).toHaveBeenCalledTimes(2);
   });
 });
